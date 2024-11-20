@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "benefits-calculator"
+version = "0.1.0"
+description = ""
+authors = ["Tim Vergenz <vergenzt@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+streamlit = "^1.40.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

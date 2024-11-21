@@ -2,7 +2,7 @@ from decimal import Decimal
 import json
 import math
 import pickle
-from typing import Any, Callable, Iterator, Optional, TypedDict
+from typing import Any, Callable, Dict, Iterator, List, Optional, TypedDict
 from datetime import date, timedelta
 from base64 import urlsafe_b64encode, urlsafe_b64decode
 
@@ -40,31 +40,43 @@ def new_tx(old_tx: PartialTx) -> Tx:
     }
 
 
-class Serde:
-    @staticmethod
-    def des(txq: str) -> Any:
-        return pickle.loads(urlsafe_b64decode(txq))
-
-    @staticmethod
-    def ser(txs: Any) -> str:
-        return urlsafe_b64encode(pickle.dumps(txs)).decode()
+to_str: Callable[[List[Tx]], str]
+to_txs: Callable[[str], List[Tx]]
+to_str, to_txs = (  # type: ignore
+    lambda txs: urlsafe_b64encode(pickle.dumps(txs)).decode().rstrip("="),
+    lambda txq: pickle.loads(urlsafe_b64decode(txq + "==")),
+)
 
 
 st.header("Expected Expenses")
 
+txs_initial = [new_tx({"desc": "Monthly Premium"})]
+
 txs_key = "txs"
-txs_initial = (
-    Serde.des(txq)
-    if (txq := st.query_params.get(txs_key))
-    else [new_tx({"desc": "Monthly Premium"})]
-)
-txs = st.data_editor(
-    txs_initial,
+txs: List[Tx] = to_txs(txq) if (txq := st.query_params.get(txs_key)) else txs_initial
+
+
+def data_update():
+    match st.session_state[editor_key]:
+        case {"added_rows": [row]}:
+            txs.append(row)
+        case {"deleted_rows": [i]}:
+            txs.pop(i)
+        case {"edited_rows": edit}:
+            i, row = edit.popitem()
+            txs[i].update(row)
+
+    st.query_params.update({txs_key: to_str(txs)})
+    st.session_state.update({"gen": gen + 1})
+
+
+st.data_editor(
+    txs,
     num_rows="dynamic",
     use_container_width=True,
+    key=(editor_key := f"data_editor.{(gen := st.session_state.setdefault("gen", 0))}"),
+    on_change=data_update,
 )
-
-st.query_params.update({ txs_key: Serde.ser(txs) })
 
 
 def get_instances(tx: Tx) -> Iterator[Tx]:
